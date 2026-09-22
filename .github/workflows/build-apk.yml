@@ -48,6 +48,7 @@ jobs:
           npm run lint:release
           npm run test:flow
           npm run test:interactions
+          npm run test:v12
           node scripts/release-doctor.mjs --apk
           npm run check:production-env
       - name: Build web app
@@ -58,7 +59,7 @@ jobs:
         run: npx cap add android && npx cap sync android && npm run android:prepare && npm run android:assets
         env:
           RPD_ANDROID_VERSION_CODE: ${{ github.run_number }}
-          RPD_ANDROID_VERSION_NAME: 1.1.0
+          RPD_ANDROID_VERSION_NAME: 1.2.0
       - name: Build installable debug APK
         working-directory: appsrc/android
         run: ./gradlew --no-daemon assembleDebug
