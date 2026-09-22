@@ -9,6 +9,9 @@ jobs:
   android-debug:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      NEXT_PUBLIC_INTERNAL_TEST_UNLOCK: "true"
+      NEXT_PUBLIC_AI_ENABLED: "true"
     steps:
       - uses: actions/checkout@v4
       - name: Restore and unpack production source
@@ -55,7 +58,7 @@ jobs:
         run: npx cap add android && npx cap sync android && npm run android:prepare && npm run android:assets
         env:
           RPD_ANDROID_VERSION_CODE: ${{ github.run_number }}
-          RPD_ANDROID_VERSION_NAME: 1.0.0
+          RPD_ANDROID_VERSION_NAME: 1.1.0
       - name: Build installable debug APK
         working-directory: appsrc/android
         run: ./gradlew --no-daemon assembleDebug
