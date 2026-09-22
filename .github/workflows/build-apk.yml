@@ -40,7 +40,13 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Verify source and production config
         working-directory: appsrc
-        run: npm run verify && npm run check:production-env
+        run: |
+          npm run typecheck
+          npm run lint:release
+          npm run test:flow
+          npm run test:interactions
+          node scripts/release-doctor.mjs --apk
+          npm run check:production-env
       - name: Build web app
         working-directory: appsrc
         run: npm run build
