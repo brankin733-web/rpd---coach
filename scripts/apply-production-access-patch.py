@@ -40,4 +40,14 @@ if new_endpoint not in ai_text:
     ai_text=ai_text.replace(old_endpoint,new_endpoint,1)
 ai_client.write_text(ai_text)
 
+capacitor=ROOT/"capacitor.config.ts"
+cap_text=capacitor.read_text()
+cap_text=cap_text.replace('appId: "com.rpdfootball.coach"', 'appId: "com.rpdfootball.coach.v143"')
+cap_text=cap_text.replace('appName: "RPD Coach"', 'appName: "RPD Coach NEW"')
+capacitor.write_text(cap_text)
+
+package=ROOT/"package.json"
+package_text=package.read_text().replace('"version": "1.1.0"', '"version": "1.4.3"')
+package.write_text(package_text)
+
 print("RPD production access patch applied")
