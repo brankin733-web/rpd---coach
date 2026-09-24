@@ -107,6 +107,7 @@ jobs:
           node ./prelaunch-ui-smoke.mjs
 
       - name: Live production route smoke
+        if: always()
         run: |
           set -e
           BASE=https://rpd-coach-ai.vercel.app
@@ -121,6 +122,7 @@ jobs:
           done
 
       - name: Live security headers
+        if: always()
         run: |
           headers=$(curl -sSI https://rpd-coach-ai.vercel.app/)
           echo "$headers"
@@ -129,6 +131,7 @@ jobs:
           echo "$headers" | grep -Eiq "^permissions-policy:"
 
       - name: AI service end-to-end QA
+        if: always()
         working-directory: appsrc
         run: |
           set -a
