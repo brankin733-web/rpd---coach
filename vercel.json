@@ -1,0 +1,6 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "installCommand": "base64 --decode rpd-coach-build-source.b64 > /tmp/rpd-coach-source.zip && unzip -q -o /tmp/rpd-coach-source.zip -d . && npm install --no-audit --no-fund",
+  "buildCommand": "npm run build"
+}
