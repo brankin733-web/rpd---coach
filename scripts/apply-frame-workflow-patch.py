@@ -73,19 +73,13 @@ replace(
     '''      <BoardCanvas board={displayBoard} selectedIds={selectedIds} multiSelect={multiSelect} tool={tool} drawConfig={drawConfig} onSelect={handleSelect} onSelectMany={setSelectedIds} onCommit={commit} onContextMenu={openContext}/>
 ''',
     '''      <BoardCanvas board={displayBoard} selectedIds={selectedIds} multiSelect={multiSelect} tool={tool} drawConfig={drawConfig} onSelect={handleSelect} onSelectMany={setSelectedIds} onCommit={commit} onContextMenu={openContext}/>
-      {animationBuildMode&&!animationPlaybackMode&&<div className="animation-build-toolbar">
-        <div className="animation-build-copy"><span>ANIMATION BUILDER</span><b>{board.animation.frames.length?board.animation.frames.length+" frame"+(board.animation.frames.length===1?"":"s")+" captured":"Build Frame 1"}</b><small>{board.animation.frames.length?"Move the players into the next position, then tap NEXT FRAME.":"Set the starting picture, then capture Frame 1."}</small></div>
-        <div className="animation-build-actions">
-          <button className="primary" onClick={captureAnimationFrame}>{board.animation.frames.length?"NEXT FRAME →":"CAPTURE FRAME 1"}</button>
-          <button disabled={board.animation.frames.length<2} onClick={startAnimationPlayback}>▶ Play</button>
-          <button onClick={()=>setSheet("animate")}>Frames</button>
-          <button onClick={()=>{setAnimationBuildMode(false);setSheet(null)}}>Done</button>
-        </div>
+      {animationBuildMode&&!animationPlaybackMode&&<div className="animation-quick-controls" aria-label="Animation controls">
+        <button className="next-frame-button" onClick={captureAnimationFrame}>＋ NEXT FRAME</button>
+        <button className="play-animation-button" disabled={board.animation.frames.length<2} onClick={startAnimationPlayback}>▶ PLAY</button>
       </div>}
-      {animationPlaybackMode&&<div className="animation-playback-toolbar">
-        <div><span>RPD ANIMATION</span><b>{animationPlaying?"Playing animation":"Animation complete"}</b></div>
-        <button disabled={animationPlaying} onClick={()=>void playAnimation()}>↺ Replay</button>
-        <button className="primary" onClick={exitAnimationPlayback}>Back to edit</button>
+      {animationPlaybackMode&&<div className="animation-playback-controls">
+        <button disabled={animationPlaying} onClick={()=>void playAnimation()}>↺ REPLAY</button>
+        <button onClick={exitAnimationPlayback}>✕ EDIT</button>
       </div>}
 '''
 )
@@ -244,11 +238,11 @@ if marker not in text:
     text += r'''
 
 /* RPD direct animation workflow */
-.animation-build-toolbar{max-width:1180px;margin:10px auto 0;padding:10px 11px;border:1px solid rgba(225,27,34,.5);border-radius:14px;background:linear-gradient(135deg,rgba(225,27,34,.12),rgba(20,20,23,.96));display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 12px 30px rgba(0,0,0,.2)}
-.animation-build-copy{min-width:0;display:grid;gap:2px}.animation-build-copy span,.animation-playback-toolbar span{font-size:9px;letter-spacing:1.2px;font-weight:950;color:#ff6166}.animation-build-copy b,.animation-playback-toolbar b{font-size:13px}.animation-build-copy small{font-size:10px;color:#9d9da6;line-height:1.35}
-.animation-build-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.animation-build-actions button,.animation-playback-toolbar button{min-height:42px;border:1px solid #393940;background:#232328;color:#fff;border-radius:10px;padding:0 12px;font-size:10px;font-weight:900;white-space:nowrap}.animation-build-actions button.primary,.animation-playback-toolbar button.primary{background:#e11b22;border-color:#e11b22}
-.animation-playback-mode{padding-bottom:0}.animation-playback-mode .board-topbar{display:none}.animation-playback-mode .board-stage-area{padding-top:12px;padding-bottom:12px;min-height:100vh;display:flex;flex-direction:column;justify-content:center}.animation-playback-mode .board-canvas{pointer-events:none}.animation-playback-toolbar{max-width:1180px;width:100%;margin:10px auto 0;padding:9px 10px;border:1px solid #35353b;border-radius:13px;background:rgba(15,15,18,.96);display:flex;align-items:center;justify-content:flex-end;gap:7px}.animation-playback-toolbar>div{margin-right:auto;display:grid;gap:1px}
-@media(max-width:680px){.animation-build-toolbar{margin-top:7px;align-items:stretch;flex-direction:column}.animation-build-actions{display:grid;grid-template-columns:1fr 1fr}.animation-build-actions .primary{grid-column:1/-1;min-height:48px}.animation-playback-mode .board-stage-area{padding:7px 6px}.animation-playback-toolbar{display:grid;grid-template-columns:1fr 1fr}.animation-playback-toolbar>div{grid-column:1/-1}.animation-playback-toolbar button{min-height:44px}}
+.animation-quick-controls,.animation-playback-controls{position:fixed;z-index:70;right:14px;bottom:14px;display:flex;gap:7px;padding:6px;border:1px solid rgba(255,255,255,.13);border-radius:13px;background:rgba(14,14,17,.88);box-shadow:0 8px 24px rgba(0,0,0,.34);backdrop-filter:blur(12px)}
+.animation-quick-controls button,.animation-playback-controls button{height:40px;border:1px solid #3a3a40;border-radius:9px;background:#25252a;color:#fff;padding:0 13px;font-size:10px;font-weight:950;letter-spacing:.45px;white-space:nowrap}
+.animation-quick-controls .next-frame-button{background:#e11b22;border-color:#e11b22}.animation-quick-controls button:disabled,.animation-playback-controls button:disabled{opacity:.38}
+.animation-playback-mode{padding-bottom:0}.animation-playback-mode .board-topbar{display:none}.animation-playback-mode .board-stage-area{padding:4px;min-height:100dvh;display:flex;flex-direction:column;justify-content:center}.animation-playback-mode .board-canvas{pointer-events:none}.animation-playback-controls{opacity:.72}.animation-playback-controls:hover,.animation-playback-controls:focus-within{opacity:1}
+@media(max-width:680px){.animation-quick-controls,.animation-playback-controls{right:8px;bottom:8px;padding:5px}.animation-quick-controls button,.animation-playback-controls button{height:38px;padding:0 11px;font-size:9px}.animation-playback-mode .board-stage-area{padding:2px}}
 '''
     css.write_text(text)
 
