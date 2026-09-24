@@ -137,6 +137,7 @@ jobs:
           set -a
           source .env.production
           set +a
+          sed -i 's/rpd.qa.launch@example.com/qa.launch@rpdfootball.com/g' ../qa/prelaunch-ai-smoke.mjs
           cp ../qa/prelaunch-ai-smoke.mjs ./prelaunch-ai-smoke.mjs
           node ./prelaunch-ai-smoke.mjs
 
