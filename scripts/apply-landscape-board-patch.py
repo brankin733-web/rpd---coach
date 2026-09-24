@@ -30,30 +30,21 @@ replace(
     '''function newBoard(){const fresh=createBlankBoard();fresh.pitch.orientation="landscape";setHistory({past:[],present:fresh,future:[]});'''
 )
 
+# Keep the app portrait-friendly outside the board. The board itself requests
+# landscape while mounted and releases that request when the coach leaves it.
 replace(
-    "app/manifest.ts",
-    '    orientation:"any",',
-    '    orientation:"landscape",'
+    "components/board/TacticalBoardApp.tsx",
+    '  const [animationPlaybackMode,setAnimationPlaybackMode]=useState(false);',
+    '''  const [animationPlaybackMode,setAnimationPlaybackMode]=useState(false);
+  useEffect(()=>{
+    const orientation=window.screen.orientation as ScreenOrientation&{
+      lock?:(value:"landscape")=>Promise<void>;
+      unlock?:()=>void;
+    };
+    void orientation?.lock?.("landscape").catch(()=>undefined);
+    return()=>orientation?.unlock?.();
+  },[]);'''
 )
-
-android = p("scripts/prepare-android.mjs")
-text = android.read_text()
-needle = '''  m=m.replace(/android:launchMode="[^"]+"/, 'android:launchMode="singleTop"');'''
-replacement = '''  m=m.replace(/android:launchMode="[^"]+"/, 'android:launchMode="singleTop"');
-  if(/android:screenOrientation="[^"]+"/.test(m)){
-    m=m.replace(/android:screenOrientation="[^"]+"/, 'android:screenOrientation="sensorLandscape"');
-  }else{
-    m=m.replace(/(<activity\\b[^>]*android:name="\\.MainActivity"[^>]*)(>)/, '$1 android:screenOrientation="sensorLandscape"$2');
-  }'''
-if replacement not in text:
-    if needle not in text:
-        raise SystemExit("Could not find Android launchMode setup")
-    text = text.replace(needle, replacement, 1)
-text = text.replace(
-    'console.log(\`Android prepared: API 36, min API 24, version ${versionName} (${versionCode}), launchMode singleTop.\`);',
-    'console.log(\`Android prepared: API 36, min API 24, version ${versionName} (${versionCode}), launchMode singleTop, landscape.\`);'
-)
-android.write_text(text)
 
 css = p("app/globals.css")
 text = css.read_text()
