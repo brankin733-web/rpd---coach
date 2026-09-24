@@ -33,8 +33,16 @@ for(const route of routes){
 
 try{
   await page.goto(base+"/board/",{waitUntil:"domcontentloaded"});
-  await page.evaluate(()=>localStorage.clear());
-  await page.reload({waitUntil:"domcontentloaded"});
+  if(page.url().includes("/onboarding")){
+    const candidates=[/skip/i,/get started/i,/start/i,/continue/i];
+    for(const pattern of candidates){
+      const button=page.getByRole("button",{name:pattern}).first();
+      if(await button.isVisible().catch(()=>false)){await button.click();break;}
+      const link=page.getByRole("link",{name:pattern}).first();
+      if(await link.isVisible().catch(()=>false)){await link.click();break;}
+    }
+    await page.goto(base+"/board/",{waitUntil:"domcontentloaded"});
+  }
   await page.waitForSelector(".board-canvas",{timeout:15000});
   pass("Board canvas renders");
 
