@@ -14,6 +14,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check Vercel token
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "::error::GitHub repository secret VERCEL_TOKEN is missing."
+            exit 1
+          fi
+          echo "VERCEL_TOKEN is configured."
+
       - name: Restore packaged RPD Coach source
         run: |
           base64 --decode rpd-coach-build-source.b64 > rpd-coach-build-source.zip
