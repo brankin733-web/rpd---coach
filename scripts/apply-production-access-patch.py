@@ -50,4 +50,8 @@ package=ROOT/"package.json"
 package_text=package.read_text().replace('"version": "1.1.0"', '"version": "1.4.3"')
 package.write_text(package_text)
 
+doctor=ROOT/"scripts/release-doctor.mjs"
+doctor_text=doctor.read_text().replace('const expectedId="com.rpdfootball.coach";', 'const expectedId="com.rpdfootball.coach.v143";')
+doctor.write_text(doctor_text)
+
 print("RPD production access patch applied")
