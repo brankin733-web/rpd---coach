@@ -1,0 +1,52 @@
+name: Deploy RPD Coach to Vercel
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy-production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore packaged RPD Coach source
+        run: |
+          base64 --decode rpd-coach-build-source.b64 > rpd-coach-build-source.zip
+          rm -rf appsrc
+          unzip -q rpd-coach-build-source.zip -d appsrc
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        working-directory: appsrc
+        run: npm install --no-audit --no-fund
+
+      - name: Link production Vercel project
+        working-directory: appsrc
+        run: |
+          mkdir -p .vercel
+          cat > .vercel/project.json <<'JSON'
+          {"orgId":"team_fbUMzujqdBif8szw5CqR7HNp","projectId":"prj_75ATZmGO7gQ0LTlmiP1tqLYVXT9c"}
+          JSON
+
+      - name: Verify production source
+        working-directory: appsrc
+        run: |
+          npm run typecheck
+          npm run lint:release
+          npm run check:production-env
+
+      - name: Build on Vercel
+        working-directory: appsrc
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: npx vercel build --prod --token="$VERCEL_TOKEN"
+
+      - name: Deploy production
+        working-directory: appsrc
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: npx vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
