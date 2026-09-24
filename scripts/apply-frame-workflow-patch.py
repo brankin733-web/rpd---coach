@@ -14,7 +14,7 @@ def path(rel):
 def replace(rel, old, new):
     p = path(rel)
     text = p.read_text()
-    if new in text:
+    if new and new in text:
         return
     if old not in text:
         raise SystemExit(f"RPD patch could not find expected source in {rel}: {old[:100]}")
