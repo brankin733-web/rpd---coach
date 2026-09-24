@@ -1,0 +1,133 @@
+name: RPD Coach Prelaunch QA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - qa/**
+      - .github/workflows/prelaunch-qa.yml
+      - scripts/apply-frame-workflow-patch.py
+      - scripts/apply-landscape-board-patch.py
+      - rpd-coach-build-source.b64
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      NEXT_PUBLIC_INTERNAL_TEST_UNLOCK: "true"
+      NEXT_PUBLIC_AI_ENABLED: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore production source
+        run: |
+          base64 --decode rpd-coach-build-source.b64 > /tmp/rpd-coach-source.zip
+          rm -rf appsrc
+          unzip -q /tmp/rpd-coach-source.zip -d appsrc
+
+      - name: Apply current source patches
+        run: |
+          python3 scripts/apply-frame-workflow-patch.py appsrc
+          python3 scripts/apply-landscape-board-patch.py appsrc
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install app dependencies
+        working-directory: appsrc
+        run: npm install --no-audit --no-fund
+
+      - name: Core source QA
+        working-directory: appsrc
+        run: |
+          npm run typecheck
+          npm run lint:release
+          npm run test:flow
+          npm run test:interactions
+          npm run test:v12
+          node scripts/release-doctor.mjs
+
+      - name: RLS smoke
+        working-directory: appsrc
+        run: |
+          set -a
+          source .env.production
+          set +a
+          npm run test:rls
+
+      - name: Production config audit
+        working-directory: appsrc
+        run: |
+          set -a
+          source .env.production
+          set +a
+          NEXT_PUBLIC_INTERNAL_TEST_UNLOCK=false node ../qa/prelaunch-config-smoke.mjs
+
+      - name: Dependency security audit
+        working-directory: appsrc
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Production web build
+        working-directory: appsrc
+        run: npm run build
+
+      - name: Install Playwright Chromium
+        working-directory: appsrc
+        run: |
+          npm install --no-save playwright@1.55.1
+          npx playwright install --with-deps chromium
+
+      - name: Start local production server
+        working-directory: appsrc
+        run: |
+          npm run start -- -p 3100 > /tmp/rpd-next.log 2>&1 &
+          echo $! > /tmp/rpd-next.pid
+          for i in {1..60}; do
+            if curl -fsS http://127.0.0.1:3100/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/rpd-next.log
+          exit 1
+
+      - name: Browser interaction QA
+        working-directory: appsrc
+        run: node ../qa/prelaunch-ui-smoke.mjs
+
+      - name: Live production route smoke
+        run: |
+          set -e
+          BASE=https://rpd-coach-ai.vercel.app
+          for path in / /board/ /library/ /sessions/ /planner/ /ai-drill/ /ai-session/ /membership/ /settings/ /profile/ /help/ /privacy/ /terms/ /delete-account/ /auth/sign-in/ /auth/sign-up/ /auth/forgot/ /manifest.webmanifest /sw.js; do
+            code=$(curl -L -sS -o /tmp/qa-body -w "%{http_code}" "$BASE$path")
+            echo "$path -> $code"
+            test "$code" -lt 400
+            if grep -Eiq "Application error|Internal Server Error" /tmp/qa-body; then
+              echo "::error::$path rendered a fatal error"
+              exit 1
+            fi
+          done
+
+      - name: Live security headers
+        run: |
+          headers=$(curl -sSI https://rpd-coach-ai.vercel.app/)
+          echo "$headers"
+          echo "$headers" | grep -Eiq "^x-content-type-options:[[:space:]]*nosniff"
+          echo "$headers" | grep -Eiq "^referrer-policy:"
+          echo "$headers" | grep -Eiq "^permissions-policy:"
+
+      - name: AI service end-to-end QA
+        working-directory: appsrc
+        run: |
+          set -a
+          source .env.production
+          set +a
+          node ../qa/prelaunch-ai-smoke.mjs
+
+      - name: Server log on failure
+        if: failure()
+        run: |
+          echo "===== NEXT SERVER LOG ====="
+          cat /tmp/rpd-next.log 2>/dev/null || true
