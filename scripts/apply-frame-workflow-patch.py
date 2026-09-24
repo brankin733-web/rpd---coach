@@ -1,337 +1,255 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import re
 import sys
 
 ROOT = Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
 
-def read(rel):
-    return (ROOT / rel).read_text()
-
-def write(rel, text):
+def path(rel):
     p = ROOT / rel
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(text)
+    if not p.exists():
+        raise SystemExit(f"RPD patch missing expected file: {p}")
+    return p
 
-def replace(rel, old, new, marker=None):
-    p = ROOT / rel
+def replace(rel, old, new):
+    p = path(rel)
     text = p.read_text()
-    if marker and marker in text:
+    if new in text:
         return
     if old not in text:
-        raise SystemExit(f"RPD patch could not find expected source in {rel}")
+        raise SystemExit(f"RPD patch could not find expected source in {rel}: {old[:100]}")
     p.write_text(text.replace(old, new, 1))
 
-# Animation timeline: one clean Play action, no inline playback behind editor chrome.
+def regex(rel, pattern, repl, count=1, flags=0):
+    p = path(rel)
+    text = p.read_text()
+    new, n = re.subn(pattern, repl, text, count=count, flags=flags)
+    if n != count:
+        raise SystemExit(f"RPD patch expected {count} match(es) in {rel}, found {n}: {pattern[:100]}")
+    p.write_text(new)
+
+# Direct frame-by-frame builder on the pitch.
 replace(
-    "src/components/board/AnimationTimeline.tsx",
-    'export function AnimationTimeline({ player }: { player: AnimationPlayer }) {',
-    'export function AnimationTimeline({ player, onPlayRequest }: { player: AnimationPlayer; onPlayRequest: () => void }) {',
-    "onPlayRequest"
+    "components/board/TacticalBoardApp.tsx",
+    '  const [animationPlaying,setAnimationPlaying]=useState(false);',
+    '  const [animationPlaying,setAnimationPlaying]=useState(false);\n  const [animationBuildMode,setAnimationBuildMode]=useState(false);\n  const [animationPlaybackMode,setAnimationPlaybackMode]=useState(false);'
 )
 replace(
-    "src/components/board/AnimationTimeline.tsx",
-    '<button type="button" className="play-button" disabled={board.frames.length < 2} onClick={player.isPlaying ? player.pause : player.play}>{player.isPlaying ? "Ⅱ Pause" : "▶ Play"}</button>',
-    '<button type="button" className="play-button" disabled={board.frames.length < 2} onClick={onPlayRequest}>▶ Play Animation</button>',
-    "▶ Play Animation"
+    "components/board/TacticalBoardApp.tsx",
+    '    setToast(`Frame ${index+1} captured`);\n  }',
+    '    setToast(`Frame ${index+1} captured`);\n    setAnimationBuildMode(true);\n    setAnimationPlaybackMode(false);\n    setSheet(null);\n  }'
 )
 replace(
-    "src/components/board/AnimationTimeline.tsx",
-    '<button type="button" onClick={player.restart}>↺</button>',
-    '<button type="button" onClick={() => { player.restart(); player.clearPreview(); }}>↺</button>',
-    "player.restart(); player.clearPreview();"
+    "components/board/TacticalBoardApp.tsx",
+    '  function stopAnimation(){animationRun.current+=1;setAnimationPlaying(false);setAnimationPreview(null);}',
+    '''  function stopAnimation(){animationRun.current+=1;setAnimationPlaying(false);setAnimationPreview(null);}
+  function startAnimationPlayback(){
+    if(board.animation.frames.length<2){setToast("Capture at least 2 frames to animate");return;}
+    setSheet(null);
+    setAnimationBuildMode(false);
+    setSelectedIds([]);
+    setTool("select");
+    setAnimationPlaybackMode(true);
+    void playAnimation();
+  }
+  function exitAnimationPlayback(){
+    stopAnimation();
+    setAnimationPlaybackMode(false);
+    setAnimationBuildMode(true);
+  }'''
 )
 replace(
-    "src/components/board/AnimationTimeline.tsx",
-    '>+ Frame</button>',
-    '>+ New Frame</button>',
-    "+ New Frame"
-)
-
-# Dedicated clean playback overlay.
-write("src/components/board/AnimationPlaybackOverlay.tsx", '''"use client";
-
-import { PitchSurface } from "./PitchSurface";
-import { useBoardStore } from "@/store/boardStore";
-import type { BoardScene } from "@/types/board";
-
-type AnimationPlayer = {
-  isPlaying: boolean;
-  scene: BoardScene | null;
-  progress: number;
-  play: () => void;
-  pause: () => void;
-  restart: () => void;
-  seek: (ratio: number) => void;
-  clearPreview: () => void;
-};
-
-export function AnimationPlaybackOverlay({ player, onClose }: { player: AnimationPlayer; onClose: () => void }) {
-  const board = useBoardStore((s) => s.board);
-  const firstFrame = board.frames[0];
-  const scene = player.scene ?? (firstFrame ? { objects: firstFrame.objects, drawings: firstFrame.drawings } : null);
-
-  return (
-    <div className="animation-playback-overlay" role="dialog" aria-modal="true" aria-label="Animation playback">
-      <div className="animation-playback-shell">
-        <div className="animation-playback-head">
-          <div>
-            <span>RPD ANIMATION</span>
-            <strong>{board.title || "Animated Drill"}</strong>
-            <small>{board.frames.length} frame{board.frames.length === 1 ? "" : "s"} • clean playback</small>
-          </div>
-          <button type="button" onClick={onClose}>Back to edit</button>
-        </div>
-
-        <div className="animation-playback-pitch">
-          <PitchSurface playbackScene={scene} interactionDisabled />
-        </div>
-
-        <div className="animation-playback-controls">
-          <button type="button" className="primary" onClick={player.isPlaying ? player.pause : player.play}>
-            {player.isPlaying ? "Ⅱ Pause" : "▶ Play"}
-          </button>
-          <button type="button" onClick={player.restart}>↺ Restart</button>
-          <input
-            aria-label="Animation progress"
-            type="range"
-            min="0"
-            max="1000"
-            value={Math.round(player.progress * 1000)}
-            onChange={(event) => player.seek(Number(event.target.value) / 1000)}
-          />
-          <span>{Math.round(player.progress * 100)}%</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-''')
-
-# Board shell: Next Frame on the working screen, clean playback mode, and no zoom controls.
-replace(
-    "src/components/board/BoardShell.tsx",
-    'import { AnimationTimeline } from "./AnimationTimeline";',
-    'import { AnimationTimeline } from "./AnimationTimeline";\nimport { AnimationPlaybackOverlay } from "./AnimationPlaybackOverlay";',
-    "AnimationPlaybackOverlay"
+    "components/board/TacticalBoardApp.tsx",
+    '<main className="rpd-board-app">',
+    '<main className={`rpd-board-app ${animationPlaybackMode?"animation-playback-mode":""}`}>'
 )
 replace(
-    "src/components/board/BoardShell.tsx",
-    '  const [drillMessage, setDrillMessage] = useState<string | null>(null);',
-    '  const [drillMessage, setDrillMessage] = useState<string | null>(null);\n  const [animationPlaybackOpen, setAnimationPlaybackOpen] = useState(false);',
-    "animationPlaybackOpen"
+    "components/board/TacticalBoardApp.tsx",
+    'onCommit={commit} onViewportCommit={viewport=>replacePresent({...board,viewport,updatedAt:now()})} onContextMenu={openContext}',
+    'onCommit={commit} onContextMenu={openContext}'
 )
 replace(
-    "src/components/board/BoardShell.tsx",
-    '  const buildMode = useBoardStore((s) => s.buildMode);',
-    '  const buildMode = useBoardStore((s) => s.buildMode);\n  const currentFrameId = useBoardStore((s) => s.currentFrameId);',
-    "currentFrameId = useBoardStore"
-)
-replace(
-    "src/components/board/BoardShell.tsx",
-    '  const setPitchOverlay = useBoardStore((s) => s.setPitchOverlay);\n  const zoomBy = useBoardStore((s) => s.zoomBy);\n  const resetViewport = useBoardStore((s) => s.resetViewport);',
-    '  const setPitchOverlay = useBoardStore((s) => s.setPitchOverlay);\n  const addFrame = useBoardStore((s) => s.addFrame);\n  const selectFrame = useBoardStore((s) => s.selectFrame);',
-    "const addFrame = useBoardStore"
-)
-replace(
-    "src/components/board/BoardShell.tsx",
-    '  const selectionCount = selectedIds.length || (selectedId ? 1 : 0);',
-    '  const selectionCount = selectedIds.length || (selectedId ? 1 : 0);\n  const currentFrameIndex = Math.max(0, board.frames.findIndex((frame) => frame.id === currentFrameId));',
-    "currentFrameIndex"
-)
-replace(
-    "src/components/board/BoardShell.tsx",
-    '  const makeCheckpoint = async () => {',
-    '''  const goToNextFrame = () => {
-    if (previewLocked || buildMode !== "animate") return;
-    player.clearPreview();
-    const index = board.frames.findIndex((frame) => frame.id === currentFrameId);
-    if (index >= 0 && index < board.frames.length - 1) {
-      selectFrame(board.frames[index + 1].id);
-      return;
-    }
-    addFrame();
-  };
-
-  const openAnimationPlayback = () => {
-    if (board.frames.length < 2) return;
-    setEquipmentOpen(false);
-    setDrawingOpen(false);
-    clearSelection();
-    selectDrawingTool(null);
-    player.restart();
-    setAnimationPlaybackOpen(true);
-    player.play();
-  };
-
-  const closeAnimationPlayback = () => {
-    player.pause();
-    player.clearPreview();
-    setAnimationPlaybackOpen(false);
-  };
-
-  const makeCheckpoint = async () => {''',
-    "const goToNextFrame"
-)
-replace(
-    "src/components/board/BoardShell.tsx",
-    '''        <div className="zoom-controls" aria-label="Zoom controls">
-          <button type="button" aria-label="Zoom out" onClick={() => zoomBy(0.85)}>−</button>
-          <span>{Math.round(board.viewport.scale * 100)}%</span>
-          <button type="button" aria-label="Zoom in" onClick={() => zoomBy(1.18)}>+</button>
-          <button type="button" className="fit-button" onClick={resetViewport}>Fit</button>
-        </div>
+    "components/board/TacticalBoardApp.tsx",
+    '''      <BoardCanvas board={displayBoard} selectedIds={selectedIds} multiSelect={multiSelect} tool={tool} drawConfig={drawConfig} onSelect={handleSelect} onSelectMany={setSelectedIds} onCommit={commit} onContextMenu={openContext}/>
 ''',
+    '''      <BoardCanvas board={displayBoard} selectedIds={selectedIds} multiSelect={multiSelect} tool={tool} drawConfig={drawConfig} onSelect={handleSelect} onSelectMany={setSelectedIds} onCommit={commit} onContextMenu={openContext}/>
+      {animationBuildMode&&!animationPlaybackMode&&<div className="animation-build-toolbar">
+        <div className="animation-build-copy"><span>ANIMATION BUILDER</span><b>{board.animation.frames.length?board.animation.frames.length+" frame"+(board.animation.frames.length===1?"":"s")+" captured":"Build Frame 1"}</b><small>{board.animation.frames.length?"Move the players into the next position, then tap NEXT FRAME.":"Set the starting picture, then capture Frame 1."}</small></div>
+        <div className="animation-build-actions">
+          <button className="primary" onClick={captureAnimationFrame}>{board.animation.frames.length?"NEXT FRAME →":"CAPTURE FRAME 1"}</button>
+          <button disabled={board.animation.frames.length<2} onClick={startAnimationPlayback}>▶ Play</button>
+          <button onClick={()=>setSheet("animate")}>Frames</button>
+          <button onClick={()=>{setAnimationBuildMode(false);setSheet(null)}}>Done</button>
+        </div>
+      </div>}
+      {animationPlaybackMode&&<div className="animation-playback-toolbar">
+        <div><span>RPD ANIMATION</span><b>{animationPlaying?"Playing animation":"Animation complete"}</b></div>
+        <button disabled={animationPlaying} onClick={()=>void playAnimation()}>↺ Replay</button>
+        <button className="primary" onClick={exitAnimationPlayback}>Back to edit</button>
+      </div>}
+'''
+)
+replace(
+    "components/board/TacticalBoardApp.tsx",
+    '{tool==="select"&&<button className={`multi-select-toggle ${multiSelect?"active":""}`}',
+    '{!animationPlaybackMode&&tool==="select"&&<button className={`multi-select-toggle ${multiSelect?"active":""}`}'
+)
+replace(
+    "components/board/TacticalBoardApp.tsx",
+    '{selectedIds.length>0&&sheet!=="edit"&&sheet!=="context"&&<>',
+    '{!animationPlaybackMode&&selectedIds.length>0&&sheet!=="edit"&&sheet!=="context"&&<>'
+)
+replace(
+    "components/board/TacticalBoardApp.tsx",
+    '<nav className="bottom-dock" aria-label="Board controls">',
+    '{!animationPlaybackMode&&<nav className="bottom-dock" aria-label="Board controls">'
+)
+replace(
+    "components/board/TacticalBoardApp.tsx",
+    '<button className={sheet==="animate"?"active":""} onClick={()=>{setTool("select");setSelectedIds([]);setSheet(sheet==="animate"?null:"animate")}}><b>▶</b><span>PLAY</span></button>',
+    '<button className={animationBuildMode?"active":""} onClick={()=>{stopAnimation();setAnimationBuildMode(v=>!v);setAnimationPlaybackMode(false);setTool("select");setSelectedIds([]);setSheet(null)}}><b>▶</b><span>ANIMATE</span></button>'
+)
+replace(
+    "components/board/TacticalBoardApp.tsx",
+    '</nav>\n    {sheet&&<div className="sheet-scrim"',
+    '</nav>}\n    {sheet&&!animationPlaybackMode&&<div className="sheet-scrim"'
+)
+replace(
+    "components/board/TacticalBoardApp.tsx",
+    '{sheet==="pitch"&&<PitchSheet board={board} patchPitch={patchPitch} resetView={()=>replacePresent({...board,viewport:{zoom:1,panX:0,panY:0},updatedAt:now()})}/>}',
+    '{sheet==="pitch"&&<PitchSheet board={board} patchPitch={patchPitch}/>}'
+)
+replace(
+    "components/board/TacticalBoardApp.tsx",
+    '{sheet==="animate"&&<AnimationSheet board={board} playing={animationPlaying} capture={captureAnimationFrame} play={()=>void playAnimation()} stop={stopAnimation} preview={previewFrame} patch={patchAnimationFrame} remove={removeAnimationFrame}/>}',
+    '{sheet==="animate"&&<AnimationSheet board={board} playing={animationPlaying} capture={captureAnimationFrame} play={startAnimationPlayback} stop={stopAnimation} preview={previewFrame} patch={patchAnimationFrame} remove={removeAnimationFrame}/>}'
+)
+regex(
+    "components/board/TacticalBoardApp.tsx",
+    r'function PitchSheet\(\{board,patchPitch,resetView\}:\{board:BoardState;patchPitch:\(p:Partial<BoardState\["pitch"\]>\)=>void;resetView:\(\)=>void\}\)\{(.*?)<div className="switch-row"><label><input type="checkbox" checked=\{board\.pitch\.snap\} onChange=\{e=>patchPitch\(\{snap:e\.target\.checked\}\)\}/><span>Smart snapping</span></label><button onClick=\{resetView\}>Reset zoom</button></div></>;\}',
+    r'''function PitchSheet({board,patchPitch}:{board:BoardState;patchPitch:(p:Partial<BoardState["pitch"]>)=>void}){\1<div className="switch-row"><label><input type="checkbox" checked={board.pitch.snap} onChange={e=>patchPitch({snap:e.target.checked})}/><span>Smart snapping</span></label></div></>;}''',
+)
+replace(
+    "components/board/TacticalBoardApp.tsx",
+    '<div className="sheet-heading"><span>ANIMATE</span><h2>Show the movement.</h2><p>Capture the current picture, move the players, then capture the next frame. RPD Coach animates between them.</p></div><div className="animation-main-actions"><button className="primary" onClick={capture}>＋ Capture frame</button>{playing?<button onClick={stop}>■ Stop</button>:<button disabled={frames.length<2} onClick={play}>▶ Play animation</button>}</div>{frames.length===0?<div className="animation-empty"><b>Start with Frame 1</b><p>Set up the starting picture and tap Capture frame. Then close this sheet, move the objects and capture Frame 2.</p></div>',
+    '<div className="sheet-heading"><span>FRAMES</span><h2>Animation frames.</h2><p>Build the movement directly on the pitch with NEXT FRAME. Use this panel only to rename frames, change timing or remove one.</p></div><div className="animation-main-actions"><button className="primary" onClick={capture}>＋ Capture current frame</button>{playing?<button onClick={stop}>■ Stop</button>:<button disabled={frames.length<2} onClick={play}>▶ Play clean animation</button>}</div>{frames.length===0?<div className="animation-empty"><b>Start with Frame 1</b><p>Close this panel, set the starting picture and use CAPTURE FRAME 1 directly below the pitch.</p></div>'
+)
+
+# Permanently fitted pitch: remove wheel, pinch, shift-pan and zoom controls.
+replace("components/board/BoardCanvas.tsx", '  onViewportCommit: (viewport: BoardState["viewport"]) => void;\n', '')
+replace("components/board/BoardCanvas.tsx", 'type PinchGesture = { ids: [number, number]; distance: number; midpoint: { x: number; y: number }; viewport: BoardState["viewport"] };\n', '')
+replace(
+    "components/board/BoardCanvas.tsx",
+    'export default function BoardCanvas({ board, selectedIds, multiSelect, tool, drawConfig, onSelect, onSelectMany, onCommit, onViewportCommit, onContextMenu }: Props) {',
+    'export default function BoardCanvas({ board, selectedIds, multiSelect, tool, drawConfig, onSelect, onSelectMany, onCommit, onContextMenu }: Props) {'
+)
+replace("components/board/BoardCanvas.tsx", '  const pinchRef = useRef<PinchGesture | null>(null);\n', '')
+replace("components/board/BoardCanvas.tsx", '  const panRef = useRef<{ pointerId: number; x: number; y: number; viewport: BoardState["viewport"] } | null>(null);\n', '')
+replace("components/board/BoardCanvas.tsx", '  const viewRef = useRef(board.viewport);\n', '')
+replace(
+    "components/board/BoardCanvas.tsx",
+    '''  useEffect(() => {
+    viewRef.current = board.viewport;
+    applyViewport(board.viewport);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [board.viewport, board.pitch.view, board.pitch.orientation, width, height]);
+
+  function viewBoxFor(viewport: BoardState["viewport"]) {
+    const zoom = clamp(viewport.zoom, 1, 4);
+    const baseX = crop.x * width, baseY = crop.y * height;
+    const baseW = crop.width * width, baseH = crop.height * height;
+    const w = baseW / zoom, h = baseH / zoom;
+    const maxX = Math.max(0, (baseW - w) / 2), maxY = Math.max(0, (baseH - h) / 2);
+    const cx = baseX + baseW / 2 + clamp(viewport.panX * baseW, -maxX, maxX);
+    const cy = baseY + baseH / 2 + clamp(viewport.panY * baseH, -maxY, maxY);
+    return { x: cx - w / 2, y: cy - h / 2, w, h, zoom };
+  }
+
+  function applyViewport(viewport: BoardState["viewport"]) {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const box = viewBoxFor(viewport);
+    svg.setAttribute("viewBox", `${box.x} ${box.y} ${box.w} ${box.h}`);
+    viewRef.current = { ...viewport, zoom: box.zoom };
+  }
+''',
+    '''  useEffect(() => {
+    applyViewport();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [board.pitch.view, board.pitch.orientation, width, height]);
+
+  function applyViewport() {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const x = crop.x * width, y = crop.y * height;
+    const w = crop.width * width, h = crop.height * height;
+    svg.setAttribute("viewBox", `${x} ${y} ${w} ${h}`);
+  }
+'''
+)
+regex(
+    "components/board/BoardCanvas.tsx",
+    r'  function registerPointer\(event: ReactPointerEvent<SVGSVGElement>\) \{\n    pointersRef\.current\.set\(event\.pointerId, \{ x: event\.clientX, y: event\.clientY \}\);\n    event\.currentTarget\.setPointerCapture\(event\.pointerId\);\n    if \(pointersRef\.current\.size === 2 && tool === "select"\) \{.*?\n    \}\n  \}',
+    '''  function registerPointer(event: ReactPointerEvent<SVGSVGElement>) {
+    pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    event.currentTarget.setPointerCapture(event.pointerId);
+    if (pointersRef.current.size >= 2) {
+      if (dragRef.current) cancelDragVisual();
+      marqueeGestureRef.current = null;
+      hideMarquee();
+    }
+  }''',
+    flags=re.S
+)
+replace(
+    "components/board/BoardCanvas.tsx",
+    '''    if (event.shiftKey && event.pointerType === "mouse" && !multiSelect) {
+      panRef.current = { pointerId:event.pointerId,x:event.clientX,y:event.clientY,viewport:{...viewRef.current} }; return;
+    }
+''',
+    ''
+)
+regex(
+    "components/board/BoardCanvas.tsx",
+    r'    if \(pinchRef\.current && pointersRef\.current\.size >= 2\) \{.*?\n    \}\n    if \(panRef\.current\?\.pointerId===event\.pointerId\) \{.*?\n    \}\n',
     '',
-    'aria-label="Zoom controls"'
+    flags=re.S
 )
 replace(
-    "src/components/board/BoardShell.tsx",
-    '''          <PitchSurface playbackScene={buildMode === "animate" ? player.scene : null} interactionDisabled={previewLocked || drillLoading} />
-
-          <div className="board-toolbar board-toolbar-bottom" aria-label="Board tools">''',
-    '''          <PitchSurface playbackScene={buildMode === "animate" ? player.scene : null} interactionDisabled={previewLocked || drillLoading} />
-
-          {buildMode === "animate" && !animationPlaybackOpen && (
-            <div className="animation-quick-next">
-              <div>
-                <span>FRAME {currentFrameIndex + 1} OF {Math.max(1, board.frames.length)}</span>
-                <strong>Move the players, then go straight to the next frame.</strong>
-                <small>Your current positions are captured automatically — no save menu needed.</small>
-              </div>
-              <button type="button" disabled={previewLocked || drillLoading} onClick={goToNextFrame}>NEXT FRAME →</button>
-            </div>
-          )}
-
-          <div className="board-toolbar board-toolbar-bottom" aria-label="Board tools">''',
-    "animation-quick-next"
+    "components/board/BoardCanvas.tsx",
+    '    if (pinchRef.current) { if(pointersRef.current.size<2){pinchRef.current=null;onViewportCommit({...viewRef.current});} releaseCapture(event.pointerId); return; }\n    if (panRef.current?.pointerId===event.pointerId) { panRef.current=null;onViewportCommit({...viewRef.current});releaseCapture(event.pointerId);return; }\n',
+    ''
 )
 replace(
-    "src/components/board/BoardShell.tsx",
-    '{buildMode === "animate" && <AnimationTimeline player={player} />}',
-    '{buildMode === "animate" && <AnimationTimeline player={player} onPlayRequest={openAnimationPlayback} />}',
-    "onPlayRequest={openAnimationPlayback}"
+    "components/board/BoardCanvas.tsx",
+    'cancelDragVisual();drawRef.current=null;curveRef.current=null;marqueeGestureRef.current=null;pinchRef.current=null;panRef.current=null;hidePreview();hideMarquee();setGuides();',
+    'cancelDragVisual();drawRef.current=null;curveRef.current=null;marqueeGestureRef.current=null;hidePreview();hideMarquee();setGuides();'
 )
 replace(
-    "src/components/board/BoardShell.tsx",
-    '      {drawerOpen && <button className="drawer-scrim" type="button" aria-label="Close tool drawer" onClick={() => { setEquipmentOpen(false); setDrawingOpen(false); }} />}',
-    '''      {drawerOpen && <button className="drawer-scrim" type="button" aria-label="Close tool drawer" onClick={() => { setEquipmentOpen(false); setDrawingOpen(false); }} />}
-
-      {animationPlaybackOpen && (
-        <AnimationPlaybackOverlay player={player} onClose={closeAnimationPlayback} />
-      )}''',
-    "onClose={closeAnimationPlayback}"
+    "components/board/BoardCanvas.tsx",
+    '  function wheelZoom(event:ReactWheelEvent<SVGSVGElement>){event.preventDefault();const delta=event.deltaY>0?.9:1.1;const next={...viewRef.current,zoom:clamp(viewRef.current.zoom*delta,1,4)};applyViewport(next);onViewportCommit(next);}\n\n',
+    ''
+)
+replace("components/board/BoardCanvas.tsx", ' onWheel={wheelZoom}', '')
+replace(
+    "components/board/BoardCanvas.tsx",
+    '    {board.viewport.zoom>1.01&&<button className="zoom-reset" type="button" onClick={()=>onViewportCommit({zoom:1,panX:0,panY:0})}>Fit view</button>}\n',
+    ''
 )
 
-# Pitch surface: permanently fit the whole pitch. No mouse-wheel zoom, pinch zoom, or pan.
-pitch = ROOT / "src/components/board/PitchSurface.tsx"
-text = pitch.read_text()
-if "Pinch to zoom" in text or "const pinchRef" in text:
-    text = text.replace('''function distance(a: Touch, b: Touch) {
-  return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
-}
-
-function center(a: Touch, b: Touch): Point {
-  return { x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 };
-}
-
-''', '')
-    text = text.replace('  const pinchRef = useRef<{ distance: number; center: Point } | null>(null);\n', '')
-    text = text.replace('  const viewport = board.viewport;\n', '')
-    text = text.replace('  const setViewport = useBoardStore((s) => s.setViewport);\n', '')
-    text = text.replace('  const groupScale = fitScale * viewport.scale;', '  const groupScale = fitScale;')
-    start = text.find('  const updateViewportAtPoint = (point: Point, nextScale: number) => {')
-    end = text.find('  const stageToNormalized = (point: Point): NormalizedPoint | null => {')
-    if start < 0 or end < 0:
-        raise SystemExit("RPD patch could not remove viewport zoom logic")
-    text = text[:start] + text[end:]
-    text = text.replace(
-        '    const logicalX = (point.x - baseX - viewport.x) / groupScale;\n    const logicalY = (point.y - baseY - viewport.y) / groupScale;',
-        '    const logicalX = (point.x - baseX) / groupScale;\n    const logicalY = (point.y - baseY) / groupScale;'
-    )
-    start = text.find('  const onWheel = (event: Konva.KonvaEventObject<WheelEvent>) => {')
-    end = text.find('  const setDraft = (draft: BoardDrawing | null) => {')
-    if start < 0 or end < 0:
-        raise SystemExit("RPD patch could not remove pinch/wheel handlers")
-    text = text[:start] + text[end:]
-    text = text.replace('    if (!activeDrawingTool || interactionDisabled || pinchRef.current) return false;', '    if (!activeDrawingTool || interactionDisabled) return false;')
-    text = text.replace('    if (!draft || pinchRef.current) return;', '    if (!draft) return;')
-    for line in [
-        '        onWheel={onWheel}\n',
-        '        onTouchStart={onTouchStart}\n',
-        '        onTouchMove={onTouchMove}\n',
-        '        onTouchEnd={endTouch}\n',
-        '        onTouchCancel={endTouch}\n',
-    ]:
-        text = text.replace(line, '')
-    text = text.replace('            x={baseX + viewport.x}\n            y={baseY + viewport.y}', '            x={baseX}\n            y={baseY}')
-    text = text.replace(
-        '<><span>Drag to move</span><span>Pinch to zoom</span><span>2 fingers to pan</span><span>Drop equipment here</span></>',
-        '<><span>Drag to move</span><span>Drop equipment here</span></>'
-    )
-    pitch.write_text(text)
-
-# Player: produce a playback scene immediately when Play is pressed.
-player = ROOT / "src/hooks/useAnimationPlayer.ts"
-text = player.read_text()
-if "renderElapsed(baseElapsedRef.current);" not in text:
-    text = text.replace(
-        '''    startRef.current = performance.now();
-    playingRef.current = true;
-    setIsPlaying(true);''',
-        '''    renderElapsed(baseElapsedRef.current);
-    startRef.current = performance.now();
-    playingRef.current = true;
-    setIsPlaying(true);''',
-        1
-    )
-    text = text.replace('  }, [cancel, tick]);', '  }, [cancel, tick, renderElapsed]);', 1)
-    player.write_text(text)
-
-# Add focused styling without touching the large existing stylesheet.
-css = ROOT / "src/app/globals.css"
+css = path("app/globals.css")
 text = css.read_text()
-marker = "/* RPD frame workflow — direct next-frame + clean playback */"
+marker = "/* RPD direct animation workflow */"
 if marker not in text:
-    text += '''
-/* RPD frame workflow — direct next-frame + clean playback */
-.animation-quick-next { max-width:1080px; margin:10px auto 0; display:flex; align-items:center; justify-content:space-between; gap:14px; padding:11px 12px; border:1px solid rgba(226,27,45,.48); border-radius:13px; background:linear-gradient(135deg,rgba(226,27,45,.12),rgba(25,27,31,.92)); }
-.animation-quick-next > div { min-width:0; display:grid; gap:2px; }
-.animation-quick-next span { color:#ff6977; font-size:9px; font-weight:950; letter-spacing:.11em; }
-.animation-quick-next strong { font-size:13px; line-height:1.25; }
-.animation-quick-next small { color:var(--muted); font-size:10px; line-height:1.3; }
-.animation-quick-next button { min-height:48px; flex:0 0 auto; border:0; border-radius:11px; background:var(--red); color:#fff; padding:0 18px; font-weight:950; letter-spacing:.04em; }
-.animation-quick-next button:disabled { opacity:.4; }
+    text += r'''
 
-.animation-playback-overlay { position:fixed; inset:0; z-index:1400; display:grid; place-items:center; padding:12px; background:rgba(5,6,7,.94); backdrop-filter:blur(14px); }
-.animation-playback-shell { width:min(1200px,100%); height:min(96dvh,980px); display:grid; grid-template-rows:auto minmax(0,1fr) auto; overflow:hidden; border:1px solid #343941; border-radius:20px; background:#0f1113; box-shadow:0 30px 100px rgba(0,0,0,.72); }
-.animation-playback-head { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:14px 16px; border-bottom:1px solid var(--line); background:#16191d; }
-.animation-playback-head > div { min-width:0; display:grid; gap:2px; }
-.animation-playback-head span { color:#ff6574; font-size:9px; font-weight:950; letter-spacing:.12em; }
-.animation-playback-head strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:17px; }
-.animation-playback-head small { color:var(--muted); font-size:10px; }
-.animation-playback-head button { min-height:42px; flex:0 0 auto; border:1px solid #3a3f46; border-radius:10px; background:#24282d; color:#fff; padding:0 13px; font-weight:850; }
-.animation-playback-pitch { min-height:0; padding:12px; display:grid; }
-.animation-playback-pitch .pitch-stage-shell { width:100%; max-width:none; height:100%; min-height:0; border-radius:13px; }
-.animation-playback-pitch .pitch-gesture-hint { display:none; }
-.animation-playback-controls { display:grid; grid-template-columns:auto auto minmax(120px,1fr) 46px; align-items:center; gap:8px; padding:12px 14px; border-top:1px solid var(--line); background:#15181b; }
-.animation-playback-controls button { min-height:44px; border:1px solid #383d44; border-radius:10px; background:#24282d; color:#fff; padding:0 15px; font-weight:900; }
-.animation-playback-controls button.primary { background:var(--red); border-color:var(--red); }
-.animation-playback-controls input[type="range"] { width:100%; accent-color:var(--red); }
-.animation-playback-controls > span { color:var(--muted); text-align:right; font-size:10px; font-weight:900; }
-
-@media (max-width:620px) {
-  .animation-quick-next { align-items:stretch; flex-direction:column; }
-  .animation-quick-next button { width:100%; min-height:52px; }
-  .animation-playback-overlay { padding:0; }
-  .animation-playback-shell { height:100dvh; border:0; border-radius:0; }
-  .animation-playback-head { padding:10px 11px; }
-  .animation-playback-head small { display:none; }
-  .animation-playback-pitch { padding:8px; }
-  .animation-playback-controls { grid-template-columns:1fr 1fr; }
-  .animation-playback-controls input[type="range"] { grid-column:1 / -1; grid-row:2; }
-  .animation-playback-controls > span { display:none; }
-}
+/* RPD direct animation workflow */
+.animation-build-toolbar{max-width:1180px;margin:10px auto 0;padding:10px 11px;border:1px solid rgba(225,27,34,.5);border-radius:14px;background:linear-gradient(135deg,rgba(225,27,34,.12),rgba(20,20,23,.96));display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 12px 30px rgba(0,0,0,.2)}
+.animation-build-copy{min-width:0;display:grid;gap:2px}.animation-build-copy span,.animation-playback-toolbar span{font-size:9px;letter-spacing:1.2px;font-weight:950;color:#ff6166}.animation-build-copy b,.animation-playback-toolbar b{font-size:13px}.animation-build-copy small{font-size:10px;color:#9d9da6;line-height:1.35}
+.animation-build-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.animation-build-actions button,.animation-playback-toolbar button{min-height:42px;border:1px solid #393940;background:#232328;color:#fff;border-radius:10px;padding:0 12px;font-size:10px;font-weight:900;white-space:nowrap}.animation-build-actions button.primary,.animation-playback-toolbar button.primary{background:#e11b22;border-color:#e11b22}
+.animation-playback-mode{padding-bottom:0}.animation-playback-mode .board-topbar{display:none}.animation-playback-mode .board-stage-area{padding-top:12px;padding-bottom:12px;min-height:100vh;display:flex;flex-direction:column;justify-content:center}.animation-playback-mode .board-canvas{pointer-events:none}.animation-playback-toolbar{max-width:1180px;width:100%;margin:10px auto 0;padding:9px 10px;border:1px solid #35353b;border-radius:13px;background:rgba(15,15,18,.96);display:flex;align-items:center;justify-content:flex-end;gap:7px}.animation-playback-toolbar>div{margin-right:auto;display:grid;gap:1px}
+@media(max-width:680px){.animation-build-toolbar{margin-top:7px;align-items:stretch;flex-direction:column}.animation-build-actions{display:grid;grid-template-columns:1fr 1fr}.animation-build-actions .primary{grid-column:1/-1;min-height:48px}.animation-playback-mode .board-stage-area{padding:7px 6px}.animation-playback-toolbar{display:grid;grid-template-columns:1fr 1fr}.animation-playback-toolbar>div{grid-column:1/-1}.animation-playback-toolbar button{min-height:44px}}
 '''
     css.write_text(text)
 
-print("RPD frame workflow patch applied")
+print("RPD direct animation workflow patch applied")
