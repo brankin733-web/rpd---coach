@@ -30,6 +30,9 @@ jobs:
           rm -rf appsrc
           unzip -q rpd-coach-build-source.zip -d appsrc
 
+      - name: Apply current RPD source patches
+        run: python3 scripts/apply-frame-workflow-patch.py appsrc
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
