@@ -102,7 +102,9 @@ jobs:
 
       - name: Browser interaction QA
         working-directory: appsrc
-        run: node ../qa/prelaunch-ui-smoke.mjs
+        run: |
+          cp ../qa/prelaunch-ui-smoke.mjs ./prelaunch-ui-smoke.mjs
+          node ./prelaunch-ui-smoke.mjs
 
       - name: Live production route smoke
         run: |
@@ -132,7 +134,8 @@ jobs:
           set -a
           source .env.production
           set +a
-          node ../qa/prelaunch-ai-smoke.mjs
+          cp ../qa/prelaunch-ai-smoke.mjs ./prelaunch-ai-smoke.mjs
+          node ./prelaunch-ai-smoke.mjs
 
       - name: Server log on failure
         if: failure()
