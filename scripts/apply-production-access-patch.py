@@ -30,4 +30,14 @@ if new not in text:
     text=text.replace(old,new,1)
 
 target.write_text(text)
+
+ai_client=ROOT/"lib/ai/client.ts"
+ai_text=ai_client.read_text()
+old_endpoint='client.functions.invoke("ai-session-builder",{body:{request}})'
+new_endpoint='client.functions.invoke("ai-complete-session",{body:{request}})'
+if new_endpoint not in ai_text:
+    if old_endpoint not in ai_text: raise SystemExit("Could not patch complete-session endpoint")
+    ai_text=ai_text.replace(old_endpoint,new_endpoint,1)
+ai_client.write_text(ai_text)
+
 print("RPD production access patch applied")
