@@ -48,7 +48,7 @@ jobs:
           npm run test:flow
           npm run test:interactions
           npm run test:v12
-          node scripts/release-doctor.mjs
+          node scripts/release-doctor.mjs --apk
 
       - name: RLS smoke
         working-directory: appsrc
