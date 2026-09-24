@@ -11,5 +11,6 @@
   },
   "devDependencies": {
     "@capacitor/cli": "8.5.2"
-  }
+  },
+  "description": "Full-screen RPD Coach Android shell"
 }
