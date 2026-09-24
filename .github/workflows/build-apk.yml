@@ -21,7 +21,7 @@ jobs:
       - name: Apply current RPD source patches
         run: |
           python3 scripts/apply-frame-workflow-patch.py appsrc
-          python3 scripts/apply-landscape-board-patch.py appsrc
+          python3 scripts/apply-landscape-board-patch.py appsrc\n          python3 scripts/apply-production-access-patch.py appsrc
       - uses: actions/setup-node@v4
         with:
           node-version: 22
