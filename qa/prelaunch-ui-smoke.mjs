@@ -33,15 +33,23 @@ for(const route of routes){
 
 try{
   await page.goto(base+"/board/",{waitUntil:"domcontentloaded"});
-  if(page.url().includes("/onboarding")){
-    const candidates=[/skip/i,/get started/i,/start/i,/continue/i];
-    for(const pattern of candidates){
-      const button=page.getByRole("button",{name:pattern}).first();
-      if(await button.isVisible().catch(()=>false)){await button.click();break;}
-      const link=page.getByRole("link",{name:pattern}).first();
-      if(await link.isVisible().catch(()=>false)){await link.click();break;}
+  await page.waitForTimeout(800);
+  if(page.url().includes("/onboarding") || await page.locator("body").innerText().then(t=>/onboarding|welcome to rpd|set up rpd/i.test(t))){
+    for(let step=0; step<8; step++){
+      const patterns=[/continue/i,/next/i,/get started/i,/start coaching/i,/start/i,/finish/i,/let.?s go/i,/skip/i];
+      let clicked=false;
+      for(const pattern of patterns){
+        const button=page.getByRole("button",{name:pattern}).last();
+        if(await button.isVisible().catch(()=>false)){await button.click();clicked=true;break;}
+        const link=page.getByRole("link",{name:pattern}).last();
+        if(await link.isVisible().catch(()=>false)){await link.click();clicked=true;break;}
+      }
+      if(!clicked)break;
+      await page.waitForTimeout(250);
+      if(!page.url().includes("/onboarding"))break;
     }
     await page.goto(base+"/board/",{waitUntil:"domcontentloaded"});
+    await page.waitForTimeout(500);
   }
   await page.waitForSelector(".board-canvas",{timeout:15000});
   pass("Board canvas renders");
