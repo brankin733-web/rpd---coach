@@ -22,7 +22,7 @@ def replace(rel, old, new):
 replace(
     "components/board/TacticalBoardApp.tsx",
     '''if(recovered?.id){setHistory({past:[],present:cloneBoard(recovered),future:[]});if(requested)setSaveForm(current=>({...current,age:requested.age||"",players:requested.players||"",duration:requested.duration||10,area:requested.area||"",organisation:requested.organisation||"",coachingPoints:requested.coachingPoints||"",keyTriggers:requested.keyTriggers||"",progressions:requested.progressions||"",notes:requested.notes||""}));}else if(window.matchMedia("(max-width:680px)").matches){const fresh=createBlankBoard();fresh.pitch.orientation="portrait";setHistory({past:[],present:fresh,future:[]});}setSavedBoards(boards);''',
-    '''if(recovered?.id){setHistory({past:[],present:cloneBoard(recovered),future:[]});if(requested)setSaveForm(current=>({...current,age:requested.age||"",players:requested.players||"",duration:requested.duration||10,area:requested.area||"",organisation:requested.organisation||"",coachingPoints:requested.coachingPoints||"",keyTriggers:requested.keyTriggers||"",progressions:requested.progressions||"",notes:requested.notes||""}));}else{const fresh=createBlankBoard();fresh.pitch.orientation="landscape";setHistory({past:[],present:fresh,future:[]});}setSavedBoards(boards);'''
+    '''if(recovered?.id){const ready=cloneBoard(recovered);if(new URLSearchParams(window.location.search).get("fit")==="full"){ready.pitch={...ready.pitch,view:"full",orientation:"landscape"};ready.viewport={zoom:1,panX:0,panY:0};}setHistory({past:[],present:ready,future:[]});if(requested)setSaveForm(current=>({...current,age:requested.age||"",players:requested.players||"",duration:requested.duration||10,area:requested.area||"",organisation:requested.organisation||"",coachingPoints:requested.coachingPoints||"",keyTriggers:requested.keyTriggers||"",progressions:requested.progressions||"",notes:requested.notes||""}));}else{const fresh=createBlankBoard();fresh.pitch.orientation="landscape";fresh.pitch.view="full";setHistory({past:[],present:fresh,future:[]});}setSavedBoards(boards);'''
 )
 replace(
     "components/board/TacticalBoardApp.tsx",
@@ -53,6 +53,18 @@ replace(
       });
     };
   },[]);'''
+)
+
+
+replace(
+    "components/app/AIDrillBuilderScreen.tsx",
+    'router.push("/board/");',
+    'router.push("/board/?fit=full");'
+)
+replace(
+    "components/app/SessionsScreen.tsx",
+    'href={\`/board/?open=\${encodeURIComponent(item.boardId)}\`}',
+    'href={\`/board/?open=\${encodeURIComponent(item.boardId)}&fit=full\`}'
 )
 
 package = p("package.json")
