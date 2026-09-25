@@ -63,8 +63,8 @@ replace(
 )
 replace(
     "components/app/SessionsScreen.tsx",
-    'href={\`/board/?open=\${encodeURIComponent(item.boardId)}\`}',
-    'href={\`/board/?open=\${encodeURIComponent(item.boardId)}&fit=full\`}'
+    'href={`/board/?open=${encodeURIComponent(item.boardId)}`}',
+    'href={`/board/?open=${encodeURIComponent(item.boardId)}&fit=full`}'
 )
 
 package = p("package.json")
