@@ -230,6 +230,11 @@ replace(
     '    {board.viewport.zoom>1.01&&<button className="zoom-reset" type="button" onClick={()=>onViewportCommit({zoom:1,panX:0,panY:0})}>Fit view</button>}\n',
     ''
 )
+replace(
+    "components/board/BoardCanvas.tsx",
+    '  const shellStyle = { aspectRatio: String(aspect) } as CSSProperties;',
+    '  const shellStyle = { aspectRatio: String(aspect), "--board-aspect": String(aspect) } as CSSProperties;'
+)
 
 css = path("app/globals.css")
 text = css.read_text()
