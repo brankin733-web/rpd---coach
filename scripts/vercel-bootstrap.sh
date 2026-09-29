@@ -6,4 +6,5 @@ python3 scripts/apply-frame-workflow-patch.py .
 python3 scripts/apply-landscape-board-patch.py .
 python3 scripts/apply-production-access-patch.py .
 python3 scripts/apply-side-trays-patch.py .
+python3 scripts/apply-chromebook-install-patch.py .
 npm install --no-audit --no-fund
