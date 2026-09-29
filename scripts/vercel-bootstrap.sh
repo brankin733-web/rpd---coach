@@ -7,4 +7,5 @@ python3 scripts/apply-landscape-board-patch.py .
 python3 scripts/apply-production-access-patch.py .
 python3 scripts/apply-side-trays-patch.py .
 python3 scripts/apply-chromebook-install-patch.py .
+python3 scripts/apply-cache-refresh-patch.py .
 npm install --no-audit --no-fund
