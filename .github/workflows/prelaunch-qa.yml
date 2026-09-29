@@ -14,6 +14,7 @@ on:
       - scripts/apply-chromebook-install-patch.py
       - scripts/apply-cache-refresh-patch.py
       - scripts/apply-device-save-patch.py
+      - scripts/apply-phone-fullscreen-board-patch.py
       - rpd-coach-build-source.b64
 
 jobs:
@@ -41,6 +42,7 @@ jobs:
           python3 scripts/apply-chromebook-install-patch.py appsrc
           python3 scripts/apply-cache-refresh-patch.py appsrc
           python3 scripts/apply-device-save-patch.py appsrc
+          python3 scripts/apply-phone-fullscreen-board-patch.py appsrc
 
       - uses: actions/setup-node@v4
         with:
