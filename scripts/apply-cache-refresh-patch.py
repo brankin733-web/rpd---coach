@@ -4,7 +4,7 @@ import sys
 
 ROOT=Path(sys.argv[1] if len(sys.argv)>1 else ".").resolve()
 BUILD="2026-09-29-1645"
-CACHE=f"rpd-coach-{BUILD}"
+CACHE=f"rpd-coach-v1-2-0-{BUILD}"
 
 def p(rel):
     q=ROOT/rel
