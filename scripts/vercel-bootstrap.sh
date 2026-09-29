@@ -9,4 +9,5 @@ python3 scripts/apply-side-trays-patch.py .
 python3 scripts/apply-chromebook-install-patch.py .
 python3 scripts/apply-cache-refresh-patch.py .
 python3 scripts/apply-device-save-patch.py .
+python3 scripts/apply-phone-fullscreen-board-patch.py .
 npm install --no-audit --no-fund
