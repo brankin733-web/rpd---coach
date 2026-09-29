@@ -8,7 +8,8 @@ function fail(message){ failures.push(message); console.error("FAIL:", message);
 function pass(message){ console.log("PASS:", message); }
 
 const browser = await chromium.launch({headless:true});
-const context = await browser.newContext({viewport:{width:1365,height:768}});\nawait context.addInitScript(()=>localStorage.setItem("rpd-coach.v2.onboarding",JSON.stringify(true)));
+const context = await browser.newContext({viewport:{width:1365,height:768}});
+await context.addInitScript(()=>localStorage.setItem("rpd-coach.v2.onboarding",JSON.stringify(true)));
 const page = await context.newPage();
 page.on("pageerror", err => consoleErrors.push("pageerror: "+err.message));
 page.on("console", msg => { if(msg.type()==="error") consoleErrors.push("console: "+msg.text()); });
