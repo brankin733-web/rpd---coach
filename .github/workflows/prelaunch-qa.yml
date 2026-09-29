@@ -11,6 +11,7 @@ on:
       - scripts/apply-frame-workflow-patch.py
       - scripts/apply-landscape-board-patch.py
       - scripts/apply-side-trays-patch.py
+      - scripts/apply-chromebook-install-patch.py
       - rpd-coach-build-source.b64
 
 jobs:
@@ -35,6 +36,7 @@ jobs:
           python3 scripts/apply-landscape-board-patch.py appsrc
           python3 scripts/apply-production-access-patch.py appsrc
           python3 scripts/apply-side-trays-patch.py appsrc
+          python3 scripts/apply-chromebook-install-patch.py appsrc
 
       - uses: actions/setup-node@v4
         with:
